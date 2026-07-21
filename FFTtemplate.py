@@ -1,0 +1,64 @@
+#pip install numpy pandas scipy PyEMD
+
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+
+# ── Load data ──────────────────────────────────────────────────────────────────
+# CHANGE THIS PATH to your own CSV file
+df = pd.read_csv('/Users/lenas/Documents/VIP Research/BRIDGE SHAKER TEST1 DATA. Vertical (z) acceleration (m_s^2) vs time_zeroed.csv')
+
+
+# ── Sampling info ──────────────────────────────────────────────────────────────
+# MAKE SURE THE CSV FILE HAS A 'timestamp' COLUMN AND A 'value' COLUMN (for accel_z) for this to work correctly
+# or change the column names below to match your CSV file's structure
+time = df['timestamp'].values
+dt_median = np.median(np.diff(time))   # median time step (handles irregular gaps)
+fs = 1.0 / dt_median                   # sampling frequency (Hz)
+N = len(df)
+
+# ── Prepare signal: convert g → m/s², remove DC (gravity/offset) ──────────────
+
+print(f"Samples : {N}")
+print(f"fs      : {fs:.2f} Hz")
+print(f"Duration: {time[-1]:.2f} s")
+
+# CHANGE THIS COLUMN NAME to match your CSV file's vertical acceleration column
+signal = df['value'].values * 9.81   # convert g's → m/s² accel_z
+signal = signal - np.mean(signal)      # remove DC (gravity + offset)
+
+# ── FFT on vertical acceleration (accel_z) ────────────────────────────────────
+#df['accel_z'] = df['accel_z'] * 9.81  # convert from g to m/s²
+freqs     = np.fft.rfftfreq(N, d=dt_median)
+#signal    = df['accel_z'].values * 9.81  # convert from g to m/s²
+
+magnitude = np.abs(np.fft.rfft(signal)) / N * 2   # single-sided amplitude
+
+peak_idx  = np.argmax(magnitude[1:]) + 1           # skip DC bin
+print(f"\nDominant frequency: {freqs[peak_idx]:.3f} Hz  (amplitude {magnitude[peak_idx]:.4f})")
+
+# ── Plot ───────────────────────────────────────────────────────────────────────
+fig, ax = plt.subplots(figsize=(10, 5))
+fig.patch.set_facecolor("#FFFFFF")
+ax.set_facecolor("#ffffff")
+
+ax.plot(freqs, magnitude, color="#FF4D4D", linewidth=1.0, alpha=0.9)
+ax.axvline(freqs[peak_idx], color="#FF4D4D", linestyle='--', alpha=0.6, linewidth=1.0)
+ax.annotate(f'{freqs[peak_idx]:.2f} Hz',
+            xy=(freqs[peak_idx], magnitude[peak_idx]),
+            xytext=(8, -14), textcoords='offset points',
+            color="#000000", fontsize=9)
+
+ax.set_title('FFT — Vertical Acceleration (accel_z)', color='white', fontsize=13, fontweight='bold', pad=10)
+ax.set_xlabel('Frequency (Hz)', color="#000000", fontsize=10)
+ax.set_ylabel('Amplitude (m/s²)', color="#000000", fontsize=10)
+ax.tick_params(colors="#000000", labelsize=8)
+ax.grid(True, color='#2a2d3a', linewidth=0.5)
+for spine in ax.spines.values():
+    spine.set_edgecolor('#333344')
+
+plt.tight_layout()
+# If you want to save the plot, uncomment the line below and specify your desired filename
+#plt.savefig('imu_fft_accel_z.png', dpi=150, bbox_inches='tight', facecolor='#0f1117')
+#print("Plot saved → imu_fft_accel_z.png")
+plt.show()
